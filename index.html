@@ -518,6 +518,15 @@
       <div id="next-fruit-preview"></div>
     </div>
     <div id="bottom-buttons">
+      <button class="bottom-btn" id="music-btn" onclick="toggleMusic()">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="24" cy="24" r="22" fill="#1a2d4d" stroke="rgba(255,255,255,0.25)" stroke-width="2"/>
+          <path d="M20 34V16l14-4v14" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+          <circle cx="17" cy="34" r="4" fill="white"/>
+          <circle cx="31" cy="30" r="4" fill="white"/>
+          <line id="music-slash" x1="10" y1="38" x2="38" y2="10" stroke="#ff5555" stroke-width="3" stroke-linecap="round" display="none"/>
+        </svg>
+      </button>
       <button class="bottom-btn" id="guide-btn" onclick="toggleGuide()">
         <img src="https://raw.githubusercontent.com/advme/suika-game/main/info-button.svg" alt="Info">
       </button>
@@ -595,6 +604,14 @@ const audioBuffers = {};
 let audioInitialized = false;
 let audioDecoding = false;
 let mergeCounter = 0; // alternates between merge1 and merge2
+
+// Background music state
+let musicSource = null;
+let musicGain = null;
+let musicMuted = false;
+let musicStarted = false;
+const MUSIC_VOLUME = 0.2;
+try { musicMuted = localStorage.getItem('suika-music-muted') === '1'; } catch(e) {}
 
 // Embedded audio data (Base64-encoded WAV files)
 const AUDIO_DATA = {
@@ -745,6 +762,84 @@ function splitBops(fullBuffer) {
   console.log('Bops split: ' + Math.min(bopCount, NUM_BOPS) + ' sounds ready');
 }
 
+function loadMusic(onLoaded) {
+  var musicUrl = ASSET_BASE + 'music.mp3';
+  fetch(musicUrl)
+    .then(function(response) {
+      if (!response.ok) throw new Error('Music fetch failed: ' + response.status);
+      return response.arrayBuffer();
+    })
+    .then(function(arrayBuffer) {
+      if (!audioCtx) {
+        console.warn('No AudioContext for music decode');
+        if (onLoaded) onLoaded();
+        return;
+      }
+      audioCtx.decodeAudioData(arrayBuffer,
+        function(decoded) {
+          audioBuffers['music'] = decoded;
+          console.log('Music ready, duration:', decoded.duration.toFixed(1) + 's');
+          if (onLoaded) onLoaded();
+        },
+        function(e) {
+          console.warn('Music decode failed:', e);
+          if (onLoaded) onLoaded();
+        }
+      );
+    })
+    .catch(function(e) {
+      console.warn('Music load failed:', e);
+      if (onLoaded) onLoaded();
+    });
+}
+
+function startMusic() {
+  if (!audioCtx || !audioBuffers['music'] || musicStarted) return;
+  try {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    musicGain = audioCtx.createGain();
+    musicGain.gain.value = musicMuted ? 0 : MUSIC_VOLUME;
+    musicGain.connect(audioCtx.destination);
+    musicSource = audioCtx.createBufferSource();
+    musicSource.buffer = audioBuffers['music'];
+    musicSource.loop = true;
+    musicSource.connect(musicGain);
+    musicSource.start(0);
+    musicStarted = true;
+  } catch(e) {
+    console.warn('Music start failed:', e);
+  }
+}
+
+function stopMusic() {
+  if (musicSource) {
+    try { musicSource.stop(); } catch(e) {}
+    try { musicSource.disconnect(); } catch(e) {}
+    musicSource = null;
+  }
+  if (musicGain) {
+    try { musicGain.disconnect(); } catch(e) {}
+    musicGain = null;
+  }
+  musicStarted = false;
+}
+
+function toggleMusic() {
+  musicMuted = !musicMuted;
+  try { localStorage.setItem('suika-music-muted', musicMuted ? '1' : '0'); } catch(e) {}
+  if (musicGain) {
+    musicGain.gain.value = musicMuted ? 0 : MUSIC_VOLUME;
+  }
+  updateMusicButtonIcon();
+}
+
+function updateMusicButtonIcon() {
+  var slash = document.getElementById('music-slash');
+  if (slash) {
+    slash.setAttribute('display', musicMuted ? 'inline' : 'none');
+  }
+}
+
 function playSound(name, volume, pitchShift) {
   if (!audioCtx || !audioBuffers[name]) return;
   try {
@@ -843,7 +938,8 @@ function getScaledRadius(level) {
 function startLoading() {
   const totalImages = FRUITS.length + 1;
   const totalAudio = 3;
-  const totalItems = totalImages + totalAudio;
+  const totalMusic = 1;
+  const totalItems = totalImages + totalAudio + totalMusic;
   let loadedItems = 0;
 
   function onItemLoaded() {
@@ -859,6 +955,7 @@ function startLoading() {
 
   preloadImages(onItemLoaded);
   initAudioForLoading(onItemLoaded);
+  loadMusic(onItemLoaded);
 }
 
 function initAudioForLoading(onItemDecoded) {
@@ -929,6 +1026,8 @@ function startGame() {
   Events.on(engine, 'collisionStart', onImpact);
 
   Runner.run(runner, engine);
+  startMusic();
+  updateMusicButtonIcon();
   requestAnimationFrame(gameLoop);
 }
 
@@ -997,6 +1096,7 @@ function onTouchDrop(e) {
 
 function drop() {
   initAudio(); // ensure audio context on first interaction
+  if (!musicStarted && audioBuffers['music']) startMusic();
   if (!canDrop || gameOver) return;
   const now = Date.now();
   if (now - lastDropTime < DROP_COOLDOWN) return;
@@ -1878,6 +1978,16 @@ window.addEventListener('resize', handleResize);
 if (window.visualViewport) {
   window.visualViewport.addEventListener('resize', handleResize);
 }
+
+// Pause/resume audio on tab visibility change
+document.addEventListener('visibilitychange', function() {
+  if (!audioCtx) return;
+  if (document.hidden) {
+    if (audioCtx.state === 'running') audioCtx.suspend();
+  } else {
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+  }
+});
 </script>
 </body>
 </html>
