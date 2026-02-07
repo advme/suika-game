@@ -376,10 +376,121 @@
     font-size: 10px;
     padding: 2px 0;
   }
+
+  /* ===== LOADING SCREEN ===== */
+  #loading-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    background: #0a1628;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    transition: opacity 0.5s ease;
+  }
+  #loading-screen.fade-out {
+    opacity: 0;
+    pointer-events: none;
+  }
+  #loading-bg {
+    position: absolute;
+    inset: 0;
+    background-image: url('https://raw.githubusercontent.com/advme/suika-game/main/background.png');
+    background-size: cover;
+    background-position: center;
+    opacity: 0.25;
+  }
+  #loading-content {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 24px;
+    padding: 40px;
+  }
+  #loading-balls {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    height: 80px;
+    margin-bottom: 8px;
+  }
+  .loading-ball {
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    animation: drop-bounce 0.7s ease-out both;
+    filter: drop-shadow(0 4px 8px rgba(0,0,0,0.3));
+  }
+  .loading-ball:nth-child(1) { animation-delay: 0s; width: 36px; height: 36px; }
+  .loading-ball:nth-child(2) { animation-delay: 0.12s; width: 40px; height: 40px; }
+  .loading-ball:nth-child(3) { animation-delay: 0.24s; width: 44px; height: 44px; }
+  .loading-ball:nth-child(4) { animation-delay: 0.36s; width: 48px; height: 48px; }
+  .loading-ball:nth-child(5) { animation-delay: 0.48s; width: 52px; height: 52px; }
+  @keyframes drop-bounce {
+    0%   { transform: translateY(-80px) scale(0.7); opacity: 0; }
+    35%  { transform: translateY(0) scale(1.15, 0.85); opacity: 1; }
+    50%  { transform: translateY(-18px) scale(0.95, 1.05); }
+    65%  { transform: translateY(0) scale(1.05, 0.95); }
+    80%  { transform: translateY(-6px) scale(0.98, 1.02); }
+    100% { transform: translateY(0) scale(1); opacity: 1; }
+  }
+  #loading-logo {
+    width: 260px;
+    max-width: 70vw;
+    height: auto;
+    object-fit: contain;
+    filter: drop-shadow(0 0 20px rgba(76, 218, 254, 0.4)) drop-shadow(0 4px 12px rgba(0,0,0,0.4));
+  }
+  #loading-bar-container {
+    width: 220px;
+    height: 16px;
+    background: rgba(0, 0, 0, 0.4);
+    border-radius: 10px;
+    border: 2px solid rgba(255,255,255,0.15);
+    overflow: hidden;
+    box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+  }
+  #loading-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #5b9eef 0%, #3d7dd8 60%, #4cdafe 100%);
+    border-radius: 8px;
+    transition: width 0.2s ease;
+    box-shadow: 0 0 10px rgba(76, 218, 254, 0.4);
+  }
+  #loading-text {
+    font-family: 'Digitalt', sans-serif;
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
 </style>
 </head>
 <body>
 
+
+<!-- Loading Screen -->
+<div id="loading-screen">
+  <div id="loading-bg"></div>
+  <div id="loading-content">
+    <div id="loading-balls">
+      <img class="loading-ball" src="https://raw.githubusercontent.com/advme/suika-game/main/Frame%202.png" alt="">
+      <img class="loading-ball" src="https://raw.githubusercontent.com/advme/suika-game/main/Frame%203.png" alt="">
+      <img class="loading-ball" src="https://raw.githubusercontent.com/advme/suika-game/main/Frame%204.png" alt="">
+      <img class="loading-ball" src="https://raw.githubusercontent.com/advme/suika-game/main/Frame%205.png" alt="">
+      <img class="loading-ball" src="https://raw.githubusercontent.com/advme/suika-game/main/Frame%206.png" alt="">
+    </div>
+    <img id="loading-logo" src="https://raw.githubusercontent.com/advme/suika-game/main/mergem%20now%20game.png" alt="Merge'm Now">
+    <div id="loading-bar-container">
+      <div id="loading-bar"></div>
+    </div>
+    <div id="loading-text">Loading...</div>
+  </div>
+</div>
 <div id="game-wrapper">
   <!-- Score (floating centered at top) -->
   <div id="score-bar">
@@ -430,9 +541,7 @@
 <script>
 // ============ VIEWPORT HEIGHT FIX (Safari) ============
 function setAppHeight() {
-  const vh = window.visualViewport
-    ? window.visualViewport.height
-    : window.innerHeight;
+  const vh = window.visualViewport ? window.visualViewport.height : window.innerHeight;
   document.documentElement.style.setProperty('--app-height', vh + 'px');
 }
 setAppHeight();
@@ -461,27 +570,19 @@ let imagesLoaded = 0;
 const bgImage = new Image();
 let bgLoaded = false;
 
-function preloadImages(callback) {
-  let totalToLoad = FRUITS.length + 1; // +1 for background
-  let loaded = 0;
-
-  function checkDone() {
-    loaded++;
-    if (loaded >= totalToLoad) callback();
-  }
-
+function preloadImages(onItemLoaded) {
   // Load background
-  bgImage.onload = () => { bgLoaded = true; checkDone(); };
-  bgImage.onerror = () => { checkDone(); };
+  bgImage.onload = () => { bgLoaded = true; onItemLoaded(); };
+  bgImage.onerror = () => { onItemLoaded(); };
   bgImage.src = ASSET_BASE + 'background.png';
 
   // Load fruit images
   for (let i = 0; i < FRUITS.length; i++) {
     const img = new Image();
-    img.onload = checkDone;
+    img.onload = () => { onItemLoaded(); };
     img.onerror = () => {
       console.warn('Failed to load:', FRUITS[i].image);
-      checkDone();
+      onItemLoaded();
     };
     img.src = FRUITS[i].image;
     fruitImages[i] = img;
@@ -525,29 +626,32 @@ function initAudio() {
 
 const NUM_BOPS = 5;
 
-function decodeAllSounds() {
+let audioLoadCallback = null;
+
+function decodeAllSounds(onItemDecoded) {
   if (audioDecoding || !audioCtx) return;
   audioDecoding = true;
+  audioLoadCallback = onItemDecoded || function(){};
 
   // Decode merge sounds (two variations, played alternating)
   ['merge1', 'merge2'].forEach(function(name) {
     try {
       const buf = base64ToArrayBuffer(AUDIO_DATA[name]);
       audioCtx.decodeAudioData(buf,
-        function(decoded) { audioBuffers[name] = decoded; console.log('Audio ready:', name); },
-        function(e) { console.warn('Audio decode failed:', name, e); }
+        function(decoded) { audioBuffers[name] = decoded; console.log('Audio ready:', name); audioLoadCallback(); },
+        function(e) { console.warn('Audio decode failed:', name, e); audioLoadCallback(); }
       );
-    } catch(e) { console.warn('Audio decode error:', name, e); }
+    } catch(e) { console.warn('Audio decode error:', name, e); audioLoadCallback(); }
   });
 
   // Decode bops MP3 then split into individual sounds
   try {
     const bopsBuf = base64ToArrayBuffer(AUDIO_DATA.bops);
     audioCtx.decodeAudioData(bopsBuf,
-      function(decoded) { splitBops(decoded); },
-      function(e) { console.warn('Audio decode failed: bops', e); }
+      function(decoded) { splitBops(decoded); audioLoadCallback(); },
+      function(e) { console.warn('Audio decode failed: bops', e); audioLoadCallback(); }
     );
-  } catch(e) { console.warn('Audio decode error: bops', e); }
+  } catch(e) { console.warn('Audio decode error: bops', e); audioLoadCallback(); }
 }
 
 function splitBops(fullBuffer) {
@@ -735,10 +839,60 @@ function getScaledRadius(level) {
 }
 
 // ============ INIT ============
+// ============ LOADING SCREEN ============
+function startLoading() {
+  const totalImages = FRUITS.length + 1;
+  const totalAudio = 3;
+  const totalItems = totalImages + totalAudio;
+  let loadedItems = 0;
+
+  function onItemLoaded() {
+    loadedItems++;
+    updateLoadingBar(loadedItems / totalItems);
+    if (loadedItems >= totalItems) {
+      setTimeout(() => {
+        hideLoadingScreen();
+        startGame();
+      }, 300);
+    }
+  }
+
+  preloadImages(onItemLoaded);
+  initAudioForLoading(onItemLoaded);
+}
+
+function initAudioForLoading(onItemDecoded) {
+  try {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    audioInitialized = true;
+    decodeAllSounds(onItemDecoded);
+  } catch(e) {
+    console.warn('Audio init for loading failed:', e);
+    onItemDecoded(); onItemDecoded(); onItemDecoded();
+  }
+}
+
+function updateLoadingBar(progress) {
+  const bar = document.getElementById('loading-bar');
+  const text = document.getElementById('loading-text');
+  if (bar) bar.style.width = Math.round(progress * 100) + '%';
+  if (text) text.textContent = Math.round(progress * 100) + '%';
+}
+
+function hideLoadingScreen() {
+  const screen = document.getElementById('loading-screen');
+  if (!screen) return;
+  screen.classList.add('fade-out');
+  setTimeout(() => { if (screen.parentNode) screen.remove(); }, 600);
+}
+
+// ============ INIT ============
 function init() {
   canvas = document.getElementById('gameCanvas');
   calculateSize();
-  preloadImages(startGame);
+  startLoading();
 }
 
 function startGame() {
@@ -757,14 +911,7 @@ function startGame() {
   updateNextPreview();
   updateScoreDisplay();
 
-  // Initialize audio on first user interaction (so sounds load before first drop)
-  function earlyAudioInit() {
-    initAudio();
-    canvas.removeEventListener('mousedown', earlyAudioInit);
-    canvas.removeEventListener('touchstart', earlyAudioInit);
-  }
-  canvas.addEventListener('mousedown', earlyAudioInit, { once: true });
-  canvas.addEventListener('touchstart', earlyAudioInit, { once: true });
+
 
   canvas.addEventListener('mousemove', onMouseMove);
   canvas.addEventListener('click', onDrop);
@@ -820,7 +967,6 @@ function onMouseMove(e) {
 
 function onTouchStart(e) {
   e.preventDefault();
-  initAudio(); // ensure audio on touch devices
   const rect = canvas.getBoundingClientRect();
   const touch = e.touches[0];
   mouseX = (touch.clientX - rect.left) * (CANVAS_WIDTH / rect.width);
