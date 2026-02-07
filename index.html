@@ -11,7 +11,7 @@
 <style>
   @font-face {
     font-family: 'Digitalt';
-    src: url('Digitalt.ttf') format('truetype');
+    src: url('https://raw.githubusercontent.com/advme/suika-game/main/Digitalt.ttf') format('truetype');
     font-weight: normal;
     font-style: normal;
   }
@@ -34,9 +34,9 @@
     display: flex;
     flex-direction: column;
     align-items: center;
-    height: 100dvh;
+    height: var(--app-height, 100dvh);
     padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
+    padding-bottom: 0;
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
@@ -294,7 +294,7 @@
     background: linear-gradient(180deg, #1a2d4d 0%, #0f1f38 100%);
     border-radius: 24px 24px 0 0;
     padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
-    max-height: 65dvh;
+    max-height: calc(var(--app-height, 100dvh) * 0.65);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     box-shadow: 0 -4px 30px rgba(0,0,0,0.3);
@@ -408,10 +408,10 @@
     </div>
     <div id="bottom-buttons">
       <button class="bottom-btn" id="guide-btn" onclick="toggleGuide()">
-        <img src="info-button.svg" alt="Info">
+        <img src="https://raw.githubusercontent.com/advme/suika-game/main/info-button.svg" alt="Info">
       </button>
       <button class="bottom-btn" id="restart-btn" onclick="restartGame()">
-        <img src="refresh-button.svg" alt="Restart">
+        <img src="https://raw.githubusercontent.com/advme/suika-game/main/refresh-button.svg" alt="Restart">
       </button>
     </div>
   </div>
@@ -428,18 +428,29 @@
 </div>
 
 <script>
+// ============ VIEWPORT HEIGHT FIX (Safari) ============
+function setAppHeight() {
+  const vh = window.visualViewport
+    ? window.visualViewport.height
+    : window.innerHeight;
+  document.documentElement.style.setProperty('--app-height', vh + 'px');
+}
+setAppHeight();
+
+const ASSET_BASE = 'https://raw.githubusercontent.com/advme/suika-game/main/';
+
 // ============ FRUIT DEFINITIONS ============
 const FRUITS = [
-  { name: 'Blueberry',   image: 'Frame 2.png',  radius: 18,  color: '#4a9ad4', points: 1  },
-  { name: 'Rambutan',    image: 'Frame 3.png',  radius: 24,  color: '#e07090', points: 3  },
-  { name: 'Cherry',      image: 'Frame 4.png',  radius: 30,  color: '#cd5c5c', points: 6  },
-  { name: 'Persimmon',   image: 'Frame 5.png',  radius: 36,  color: '#e06050', points: 10 },
-  { name: 'Melon',       image: 'Frame 6.png',  radius: 44,  color: '#7dab6e', points: 15 },
-  { name: 'Coconut',     image: 'Frame 7.png',  radius: 52,  color: '#b07830', points: 21 },
-  { name: 'Grape',       image: 'Frame 8.png',  radius: 60,  color: '#9370a8', points: 28 },
-  { name: 'Lemon',       image: 'Frame 9.png',  radius: 68,  color: '#e0c050', points: 36 },
-  { name: 'Pear',        image: 'Frame 10.png', radius: 78,  color: '#5a9e8f', points: 45 },
-  { name: 'Watermelon',  image: 'Frame 11.png', radius: 88,  color: '#5a9e5a', points: 55 },
+  { name: 'Blueberry',   image: ASSET_BASE + 'Frame%202.png',  radius: 18,  color: '#4a9ad4', points: 1  },
+  { name: 'Rambutan',    image: ASSET_BASE + 'Frame%203.png',  radius: 24,  color: '#e07090', points: 3  },
+  { name: 'Cherry',      image: ASSET_BASE + 'Frame%204.png',  radius: 30,  color: '#cd5c5c', points: 6  },
+  { name: 'Persimmon',   image: ASSET_BASE + 'Frame%205.png',  radius: 36,  color: '#e06050', points: 10 },
+  { name: 'Melon',       image: ASSET_BASE + 'Frame%206.png',  radius: 44,  color: '#7dab6e', points: 15 },
+  { name: 'Coconut',     image: ASSET_BASE + 'Frame%207.png',  radius: 52,  color: '#b07830', points: 21 },
+  { name: 'Grape',       image: ASSET_BASE + 'Frame%208.png',  radius: 60,  color: '#9370a8', points: 28 },
+  { name: 'Lemon',       image: ASSET_BASE + 'Frame%209.png',  radius: 68,  color: '#e0c050', points: 36 },
+  { name: 'Pear',        image: ASSET_BASE + 'Frame%2010.png', radius: 78,  color: '#5a9e8f', points: 45 },
+  { name: 'Watermelon',  image: ASSET_BASE + 'Frame%2011.png', radius: 88,  color: '#5a9e5a', points: 55 },
 ];
 
 // Preload all fruit images
@@ -462,7 +473,7 @@ function preloadImages(callback) {
   // Load background
   bgImage.onload = () => { bgLoaded = true; checkDone(); };
   bgImage.onerror = () => { checkDone(); };
-  bgImage.src = 'background.png';
+  bgImage.src = ASSET_BASE + 'background.png';
 
   // Load fruit images
   for (let i = 0; i < FRUITS.length; i++) {
@@ -1698,18 +1709,29 @@ function toggleGuide() {
 }
 
 // ============ START ============
-window.addEventListener('load', init);
-window.addEventListener('resize', () => {
-  if (canvas && ctx) {
-    calculateSize();
-    if (engine) {
-      const bodies = Composite.allBodies(engine.world);
-      const statics = bodies.filter(b => b.isStatic);
-      World.remove(engine.world, statics);
-      setupWalls();
+// ============ VIEWPORT & RESIZE HANDLING ============
+let resizeTimeout = null;
+function handleResize() {
+  setAppHeight();
+  clearTimeout(resizeTimeout);
+  resizeTimeout = setTimeout(() => {
+    if (canvas && ctx) {
+      calculateSize();
+      if (engine) {
+        const bodies = Composite.allBodies(engine.world);
+        const statics = bodies.filter(b => b.isStatic);
+        World.remove(engine.world, statics);
+        setupWalls();
+      }
     }
-  }
-});
+  }, 100);
+}
+
+window.addEventListener('load', () => { setAppHeight(); init(); });
+window.addEventListener('resize', handleResize);
+if (window.visualViewport) {
+  window.visualViewport.addEventListener('resize', handleResize);
+}
 </script>
 </body>
 </html>
